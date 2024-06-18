@@ -8,6 +8,8 @@ import { FindOptionsWhere } from 'typeorm'
 import { ChatMessage } from '../../database/entities/ChatMessage'
 import { InternalFlowiseError } from '../../errors/internalFlowiseError'
 import { StatusCodes } from 'http-status-codes'
+import { utilValidateKey } from '../../utils/validateKey'
+import { ChatFlow } from '../../database/entities/ChatFlow'
 
 const createChatMessage = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -55,6 +57,21 @@ const getAllChatMessages = async (req: Request, res: Response, next: NextFunctio
                 `Error: chatMessageController.getAllChatMessages - id not provided!`
             )
         }
+
+        // verify api token
+        const chatflowid = req.params.id
+        const appServer = getRunningExpressApp()
+        const chatflow = await appServer.AppDataSource.getRepository(ChatFlow).findOneBy({
+            id: chatflowid
+        })
+        if (!chatflow) {
+            throw new InternalFlowiseError(StatusCodes.NOT_FOUND, `Chatflow ${chatflowid} not found`)
+        }
+        const isKeyValidated = await utilValidateKey(req, chatflow)
+        if (!isKeyValidated) {
+            throw new InternalFlowiseError(StatusCodes.UNAUTHORIZED, `Unauthorized`)
+        }
+
         const apiResponse = await chatMessagesService.getAllChatMessages(
             req.params.id,
             chatTypeFilter,
