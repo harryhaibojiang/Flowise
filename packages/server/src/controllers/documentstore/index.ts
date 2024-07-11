@@ -1,9 +1,11 @@
 import { NextFunction, Request, Response } from 'express'
 import { StatusCodes } from 'http-status-codes'
 import documentStoreService from '../../services/documentstore'
+import chatflowService from '../../services/chatflows'
 import { DocumentStore } from '../../database/entities/DocumentStore'
 import { InternalFlowiseError } from '../../errors/internalFlowiseError'
 import { DocumentStoreDTO } from '../../Interface'
+import { utilValidateKey } from '../../utils/validateKey'
 
 const createDocumentStore = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -248,11 +250,86 @@ const getDocumentLoaders = async (req: Request, res: Response, next: NextFunctio
     }
 }
 
+const getDocumentStoreById_API = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        if (typeof req.params.id === 'undefined' || req.params.id === '') {
+            throw new InternalFlowiseError(
+                StatusCodes.PRECONDITION_FAILED,
+                `Error: documentStoreController.getDocumentStoreById - id not provided!`
+            )
+        }
+
+        const apiResponse = await authStore_API(req.params.id, req)
+        if (apiResponse && apiResponse.whereUsed) {
+            apiResponse.whereUsed = JSON.stringify(await documentStoreService.getUsedChatflowNames(apiResponse))
+        }
+        return res.json(DocumentStoreDTO.fromEntity(apiResponse))
+    } catch (error) {
+        next(error)
+    }
+}
+
+const processFileChunks_API = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        if (typeof req.body === 'undefined') {
+            throw new InternalFlowiseError(
+                StatusCodes.PRECONDITION_FAILED,
+                `Error: documentStoreController.processFileChunks - body not provided!`
+            )
+        }
+        const body = req.body
+        await authStore_API(body.storeId, req)
+        const apiResponse = await documentStoreService.processAndSaveChunks(body)
+        return res.json(apiResponse)
+    } catch (error) {
+        next(error)
+    }
+}
+
+const deleteLoaderFromDocumentStore_API = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const storeId = req.params.id
+        const loaderId = req.params.loaderId
+
+        if (!storeId || !loaderId) {
+            throw new InternalFlowiseError(
+                StatusCodes.PRECONDITION_FAILED,
+                `Error: documentStoreController.deleteLoaderFromDocumentStore - missing storeId or loaderId.`
+            )
+        }
+        await authStore_API(storeId, req)
+        const apiResponse = await documentStoreService.deleteLoaderFromDocumentStore(storeId, loaderId)
+        return res.json(DocumentStoreDTO.fromEntity(apiResponse))
+    } catch (error) {
+        next(error)
+    }
+}
+
+const authStore_API = async (storeId: string, req: Request) => {
+    const apiResponse = await documentStoreService.getDocumentStoreById(storeId)
+    if (apiResponse && apiResponse.whereUsed) {
+        const chatFlowId = JSON.parse(apiResponse.whereUsed)[0]
+        const chatflow = await chatflowService.getChatflowById(chatFlowId)
+        if (!chatflow) {
+            throw new InternalFlowiseError(StatusCodes.UNAUTHORIZED, `Unauthorized`)
+        }
+        const isKeyValidated = await utilValidateKey(req, chatflow)
+        if (!isKeyValidated) {
+            throw new InternalFlowiseError(StatusCodes.UNAUTHORIZED, `Unauthorized`)
+        }
+    }
+
+    return apiResponse
+}
+
 export default {
     deleteDocumentStore,
     createDocumentStore,
     getAllDocumentStores,
     deleteLoaderFromDocumentStore,
+    getDocumentStoreById_API,
+    processFileChunks_API,
+    deleteLoaderFromDocumentStore_API,
     getDocumentStoreById,
     getDocumentStoreFileChunks,
     updateDocumentStore,

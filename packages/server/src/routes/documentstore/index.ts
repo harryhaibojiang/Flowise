@@ -1,5 +1,6 @@
 import express from 'express'
 import documentStoreController from '../../controllers/documentstore'
+import vectorsController from '../../controllers/vectors'
 const router = express.Router()
 
 /** Document Store Routes */
@@ -32,5 +33,15 @@ router.delete('/chunks/:storeId/:loaderId/:chunkId', documentStoreController.del
 router.put('/chunks/:storeId/:loaderId/:chunkId', documentStoreController.editDocumentStoreFileChunk)
 // Get all file chunks from the store
 router.get('/chunks/:storeId/:fileId/:pageNo', documentStoreController.getDocumentStoreFileChunks)
+
+/** my custom route */
+// Get specific store
+router.get('/my-store/:id', documentStoreController.getDocumentStoreById_API)
+// Upload Docs into store
+router.post('/my-store/upload', documentStoreController.processFileChunks_API)
+// Delete Doc
+router.delete('/my-store/:id/:loaderId', documentStoreController.deleteLoaderFromDocumentStore_API)
+// upsert docs
+router.post('/my-store/upsert/:id', vectorsController.createInternalUpsert_API)
 
 export default router

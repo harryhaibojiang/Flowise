@@ -6,6 +6,7 @@ import { getApiKey } from '../../utils/apiKey'
 import { InternalFlowiseError } from '../../errors/internalFlowiseError'
 import { StatusCodes } from 'http-status-codes'
 import { ChatflowType } from '../../Interface'
+import { utilValidateKey } from '../../utils/validateKey'
 
 const checkIfChatflowIsValidForStreaming = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -129,6 +130,62 @@ const updateChatflow = async (req: Request, res: Response, next: NextFunction) =
     }
 }
 
+const getChatflowConfig = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        if (typeof req.params === 'undefined' || !req.params.id) {
+            throw new InternalFlowiseError(StatusCodes.PRECONDITION_FAILED, `Error: chatflowsRouter.getChatflowById - id not provided!`)
+        }
+        const chatflow = await chatflowsService.getChatflowById(req.params.id)
+        const isKeyValidated = await utilValidateKey(req, chatflow)
+        if (!isKeyValidated) {
+            throw new InternalFlowiseError(StatusCodes.UNAUTHORIZED, `Unauthorized`)
+        }
+
+        const config = {
+            prompt: JSON.parse(chatflow.flowData).nodes.find((node: any) => node.id === 'conversationalRetrievalQAChain_0').data.inputs
+                .responsePrompt
+        }
+
+        return res.json(config)
+    } catch (error) {
+        next(error)
+    }
+}
+
+const updateChatflowConfig = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        if (typeof req.params === 'undefined' || !req.params.id) {
+            throw new InternalFlowiseError(StatusCodes.PRECONDITION_FAILED, `Error: chatflowsRouter.updateChatflow - id not provided!`)
+        }
+        const chatflow = await chatflowsService.getChatflowById(req.params.id)
+        if (!chatflow) {
+            return res.status(404).send(`Chatflow ${req.params.id} not found`)
+        }
+        const isKeyValidated = await utilValidateKey(req, chatflow)
+        if (!isKeyValidated) {
+            throw new InternalFlowiseError(StatusCodes.UNAUTHORIZED, `Unauthorized`)
+        }
+
+        const body = req.body
+        const flowData = JSON.parse(chatflow.flowData)
+        if (body.prompt) {
+            flowData.nodes.forEach((node: any) => {
+                if (node.id === 'conversationalRetrievalQAChain_0') {
+                    node.data.inputs.responsePrompt = body.prompt
+                }
+            })
+        }
+        chatflow.flowData = JSON.stringify(flowData)
+
+        await chatflowsService.updateChatflow(chatflow, chatflow)
+        return res.json({
+            success: true
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 const getSinglePublicChatflow = async (req: Request, res: Response, next: NextFunction) => {
     try {
         if (typeof req.params === 'undefined' || !req.params.id) {
@@ -168,6 +225,8 @@ export default {
     getChatflowById,
     saveChatflow,
     updateChatflow,
+    getChatflowConfig,
+    updateChatflowConfig,
     getSinglePublicChatflow,
     getSinglePublicChatbotConfig
 }

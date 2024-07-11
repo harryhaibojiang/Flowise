@@ -2,6 +2,10 @@ import express from 'express'
 import chatflowsController from '../../controllers/chatflows'
 const router = express.Router()
 
+// my custom routes
+router.get('/config/:id', chatflowsController.getChatflowConfig)
+router.put('/config/:id', chatflowsController.updateChatflowConfig)
+
 // CREATE
 router.post('/', chatflowsController.saveChatflow)
 

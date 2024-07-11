@@ -138,7 +138,10 @@ export class App {
                 '/api/v1/leads',
                 '/api/v1/get-upload-file',
                 '/api/v1/ip',
-                '/api/v1/ping'
+                '/api/v1/ping',
+                '/api/v1/chatmessage/',
+                '/api/v1/document-store/my-store/',
+                '/api/v1/chatflows/config/'
             ]
             this.app.use((req, res, next) => {
                 if (/\/api\/v1\//i.test(req.url)) {
